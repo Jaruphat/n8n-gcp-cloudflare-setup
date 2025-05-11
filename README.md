@@ -17,7 +17,7 @@ gcloud compute ssh [YOUR_VM_NAME] --zone=[YOUR_ZONE]
 ### ขั้นตอนที่ 2: ดาวน์โหลดและรันสคริปต์ติดตั้ง
 
 ```bash
-curl -O https://raw.githubusercontent.com/Jaruphat/n8n-cloudflare-setup/main/setup-n8n-cloudflare.sh
+curl -O https://raw.githubusercontent.com/Jaruphat/n8n-gcp-cloudflare-setup/main/setup-n8n-cloudflare.sh
 chmod +x setup-n8n-cloudflare.sh
 ./setup-n8n-cloudflare.sh
 ```
