@@ -5,6 +5,7 @@
 ก่อนเริ่มใช้งาน คุณต้องเตรียมสิ่งต่อไปนี้ให้พร้อม:
 
 * ✅ มี VM instance ที่ติดตั้ง `n8n` แล้ว (เข้าผ่าน [http://your-external-ip/n8n](http://your-external-ip/n8n) ได้)
+* ถ้ายังไม่มี n8n ที่ติดตั้งอยู่บน VM instance ของ GCP สามารถดูการติดตั้งได้ที่นี่ [ติดตั้ง n8n บน VM ของ GCP ฟรี!](https://jjaru.medium.com/ติดตั้ง-n8n-บน-vm-ของ-gcp-ฟรี-ด้วย-free-tier-และใช้-external-ip-ไม่ต้องมี-domain-ของตัวเอง-f5b7275e1908)
 * ✅ ระบบปฏิบัติการ Ubuntu 20.04 / 22.04 หรือ Debian 12
 * ✅ เชื่อมต่ออินเทอร์เน็ตได้ และสามารถติดตั้งแพ็กเกจผ่าน apt
 * ❌ **ไม่ต้องมีโดเมน ไม่ต้องเปิดพอร์ต**
@@ -23,13 +24,12 @@ gcloud compute ssh [YOUR_VM_NAME] --zone=[YOUR_ZONE]
 
 ## ✅ STEP 2: ติดตั้ง Docker + cloudflared ด้วยตนเอง
 
-### ติดตั้ง Docker
+~~### ติดตั้ง Docker~~
 
-```bash
-sudo apt update -y
-sudo apt install -y docker.io
-```
-
+~~```bash~~
+~~sudo apt update -y~~
+~~sudo apt install -y docker.io~~
+~~```~~
 ### ติดตั้ง cloudflared (Cloudflare Tunnel CLI)
 
 ```bash
