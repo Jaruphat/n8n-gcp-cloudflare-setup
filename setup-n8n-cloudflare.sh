@@ -1,9 +1,9 @@
 #!/bin/bash
-# setup-n8n-cloudflare.sh - สำหรับ Debian/Ubuntu VM ที่มี n8n ติดตั้งแล้ว
+# ติดตั้ง Docker + cloudflared สำหรับ Debian/Ubuntu GCP VM
 
 set -e
 
-echo "📦 ติดตั้ง Docker (จาก repo ของ Debian)..."
+echo "📦 ติดตั้ง Docker จาก Debian repo..."
 sudo apt update -y
 sudo apt install -y docker.io
 
@@ -15,9 +15,6 @@ chmod +x cloudflared
 sudo mv cloudflared /usr/local/bin/
 
 echo ""
-echo "✅ พร้อมใช้งานแล้ว!"
-echo "➡️ รันคำสั่งนี้เพื่อเปิดลิงก์ HTTPS ให้กับ n8n:"
+echo "✅ ติดตั้งสำเร็จ! รันคำสั่งนี้:"
 echo ""
 echo "   cloudflared tunnel --url http://localhost:5678"
-echo ""
-echo "ระบบจะสร้างลิงก์เช่น https://xxx.trycloudflare.com"
