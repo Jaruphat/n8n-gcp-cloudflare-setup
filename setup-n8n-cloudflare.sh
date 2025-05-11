@@ -1,5 +1,5 @@
 #!/bin/bash
-# ติดตั้ง Docker + cloudflared สำหรับ Debian/Ubuntu GCP VM
+# setup-n8n-cloudflare.sh - สำหรับ Debian/Ubuntu GCP VM ที่มี n8n ติดตั้งแล้ว
 
 set -e
 
@@ -15,6 +15,6 @@ chmod +x cloudflared
 sudo mv cloudflared /usr/local/bin/
 
 echo ""
-echo "✅ ติดตั้งสำเร็จ! รันคำสั่งนี้:"
+echo "✅ พร้อมใช้งานแล้ว! รันคำสั่งนี้:"
 echo ""
 echo "   cloudflared tunnel --url http://localhost:5678"
