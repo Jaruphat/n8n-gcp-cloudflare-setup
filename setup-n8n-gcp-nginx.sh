@@ -7,7 +7,7 @@ if [ -z "$IP_ADDRESS" ]; then
 fi
 
 echo "✅ ติดตั้ง Docker และ Docker Compose..."
-sudo apt update && sudo apt install -y docker.io docker-compose
+sudo apt update && sudo apt install -y docker.io docker-compose-plugin
 sudo usermod -aG docker $USER
 
 mkdir -p ~/n8n && cd ~/n8n
