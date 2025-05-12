@@ -1,118 +1,238 @@
-# 🌐 ติดตั้ง Cloudflare Tunnel เพื่อให้ n8n ใช้งาน HTTPS ได้บน GCP VM (ไม่มีโดเมนก็ใช้ได้)
+# 🚀 ติดตั้ง n8n บน GCP VM พร้อม HTTPS ด้วย NGINX + Self-signed SSL (ไม่มีโดเมนก็ใช้ได้)
 
-## 📌 Prerequisites / ข้อกำหนดเบื้องต้น
+## 📌 ขั้นตอนทั้งหมด
 
-ก่อนเริ่มใช้งาน คุณต้องเตรียมสิ่งต่อไปนี้ให้พร้อม:
-
-* ✅ มี VM instance ที่ติดตั้ง `n8n` แล้ว (เข้าผ่าน [http://your-external-ip/n8n](http://your-external-ip/n8n) ได้)
-* ถ้ายังไม่มี n8n ที่ติดตั้งอยู่บน VM instance ของ GCP สามารถดูการติดตั้งได้ที่นี่ [ติดตั้ง n8n บน VM ของ GCP ฟรี!](https://jjaru.medium.com/ติดตั้ง-n8n-บน-vm-ของ-gcp-ฟรี-ด้วย-free-tier-และใช้-external-ip-ไม่ต้องมี-domain-ของตัวเอง-f5b7275e1908)
-* ✅ ระบบปฏิบัติการ Ubuntu 20.04 / 22.04 หรือ Debian 12
-* ✅ เชื่อมต่ออินเทอร์เน็ตได้ และสามารถติดตั้งแพ็กเกจผ่าน apt
-* ❌ **ไม่ต้องมีโดเมน ไม่ต้องเปิดพอร์ต**
+1. สร้าง VM instance บน Google Cloud
+2. ติดตั้ง Docker + Docker Compose
+3. รัน n8n ด้วย Docker Compose
+4. ติดตั้ง NGINX + SSL สำหรับ HTTPS ด้วย Self-signed Certificate
 
 ---
 
-## ✅ STEP 1: SSH เข้าไปใน VM
+## ✅ STEP 1: สร้าง VM บน GCP
+
+1. เข้า [Google Cloud Console](https://console.cloud.google.com/)
+2. ไปที่ **Compute Engine > VM instances**
+3. คลิกปุ่ม **Create Instance** แล้วตั้งค่า:
+
+   * Machine: `e2-micro` (Free-tier)
+   * OS: Ubuntu 22.04 LTS
+   * Firewall: ✅ Allow HTTP / ✅ Allow HTTPS
+4. กด Create แล้วรอ VM พร้อมใช้งาน
+
+---
+
+## ✅ STEP 2: ติดตั้ง Docker + Docker Compose
 
 ```bash
-gcloud compute ssh [YOUR_VM_NAME] --zone=[YOUR_ZONE]
+sudo apt update && sudo apt install -y docker.io docker-compose
+sudo usermod -aG docker $USER
+newgrp docker
 ```
 
-หรือเข้าผ่าน SSH ผ่าน GCP
-
----
-
-## ✅ STEP 2: ติดตั้ง Docker + cloudflared ด้วยตนเอง
-
-~~### ติดตั้ง Docker~~
-
-~~```bash~~
-~~sudo apt update -y~~
-~~sudo apt install -y docker.io~~
-~~```~~
-### ติดตั้ง cloudflared (Cloudflare Tunnel CLI)
+ตรวจสอบว่า docker ใช้งานได้:
 
 ```bash
-wget -O cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-chmod +x cloudflared
-sudo mv cloudflared /usr/local/bin/
+docker --version
 ```
 
 ---
 
-## ✅ STEP 3: Login กับ Cloudflare (ครั้งแรก)
+## ✅ STEP 3: สร้างไฟล์ `docker-compose.yml` สำหรับ n8n (พร้อม PostgreSQL)
 
 ```bash
-cloudflared login
-```
-
-ระบบจะขึ้นลิงก์ → copy ไปเปิดในเบราว์เซอร์เครื่องคุณ แล้วอนุญาตให้ใช้งานบัญชี Cloudflare
-
----
-
-## ✅ STEP 4: สร้าง Tunnel แบบมีชื่อ
-
-```bash
-cloudflared tunnel create n8n-gcp
-```
-
-จะได้ไฟล์ `~/.cloudflared/n8n-gcp.json`
-
----
-
-## ✅ STEP 5: สร้าง config.yaml สำหรับ Tunnel
-
-```bash
-nano ~/.cloudflared/config.yaml
+mkdir n8n && cd n8n
+nano docker-compose.yml
 ```
 
 วางเนื้อหานี้:
 
 ```yaml
-tunnel: n8n-gcp
-credentials-file: /home/ubuntu/.cloudflared/n8n-gcp.json
+version: "3.7"
 
-ingress:
-  - hostname: n8n-yourname.cfargotunnel.com
-    service: http://localhost:5678
-  - service: http_status:404
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      - POSTGRES_USER=n8n
+      - POSTGRES_PASSWORD=n8npass
+      - POSTGRES_DB=n8n
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    restart: always
+    ports:
+      - "5678:5678"
+    environment:
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_HOST=postgres
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_DATABASE=n8n
+      - DB_POSTGRESDB_USER=n8n
+      - DB_POSTGRESDB_PASSWORD=n8npass
+      - DB_POSTGRESDB_SCHEMA=public
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_HOST=localhost
+      - WEBHOOK_URL=http://localhost:5678/
+      - NODE_ENV=production
+      - N8N_SECURE_COOKIE=false
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
+  n8n_data:
 ```
 
-> เปลี่ยน `ubuntu` และ `yourname` ตามที่ใช้จริง
+จากนั้นรัน:
+
+```bash
+docker compose up -d
+```
+
+ตรวจสอบว่าใช้งานได้:
+
+```
+http://<YOUR_EXTERNAL_IP>:5678
+```
 
 ---
 
-## ✅ STEP 6: ขอใช้โดเมนฟรีจาก Cloudflare (cfargotunnel.com)
+# 🌐 เพิ่ม HTTPS ด้วย NGINX + Self-Signed SSL
+
+## ✅ STEP 3.5: เริ่มต้น docker-compose
 
 ```bash
-cloudflared tunnel route dns n8n-gcp n8n-yourname.cfargotunnel.com
+docker compose up -d
+```
+
+เมื่อเรียบร้อยแล้วสามารถเข้าทดสอบได้ที่:
+
+```
+http://<YOUR_EXTERNAL_IP>:5678
 ```
 
 ---
 
-## ✅ STEP 7: รัน Tunnel แบบถาวร
+## ✅ STEP 4: ติดตั้ง nginx + openssl + certbot (optional)
 
 ```bash
-cloudflared tunnel run n8n-gcp
-```
-
-หรือติดตั้งเป็น background service:
-
-```bash
-sudo cloudflared service install
+sudo apt update && sudo apt install nginx openssl certbot python3-certbot-nginx -y
 ```
 
 ---
 
-## ✅ STEP 8: ตั้งค่าตัวแปรใน n8n ให้รู้จักลิงก์ HTTPS
+## ✅ STEP 5: สร้าง Self-signed SSL Certificate
+
+```bash
+sudo mkdir -p /etc/nginx/ssl/n8n
+
+sudo openssl req -x509 -nodes -days 365 \
+  -newkey rsa:2048 \
+  -keyout /etc/nginx/ssl/n8n/server.key \
+  -out /etc/nginx/ssl/n8n/server.crt \
+  -subj "/CN=YOUR_SERVER_IP"
+```
+
+> แทน `YOUR_SERVER_IP` เป็น External IP ของ VM
+
+---
+
+## ✅ STEP 6: เขียน nginx config
+
+```bash
+sudo nano /etc/nginx/sites-available/n8n
+```
+
+```nginx
+server {
+    listen 80;
+    server_name YOUR_SERVER_IP;
+    return 301 https://$host:443$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name YOUR_SERVER_IP;
+
+    ssl_certificate /etc/nginx/ssl/n8n/server.crt;
+    ssl_certificate_key /etc/nginx/ssl/n8n/server.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1m;
+    client_max_body_size 100m;
+
+    location / {
+        proxy_pass http://localhost:5678;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+---
+
+## ✅ STEP 7: เปิดใช้ config และ restart nginx
+
+```bash
+sudo ln -s /etc/nginx/sites-available/n8n /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+---
+
+## ✅ STEP 7.5: เปิด Firewall Rule สำหรับพอร์ต 443 บน GCP
+
+1. ไปที่ Google Cloud Console → VPC Network → Firewall Rules
+2. Create Firewall Rule:
+
+   * Name: `allow-nginx-https`
+   * Target: All instances
+   * Source IP Ranges: `0.0.0.0/0`
+   * Protocols/Ports: `tcp:443`
+
+---
+
+## ✅ STEP 8: ทดสอบการใช้งาน
+
+เข้า URL:
+
+```
+https://YOUR_SERVER_IP:443
+```
+
+> ถ้า browser ขึ้น Warning ให้คลิก Advanced > Proceed
+
+---
+
+## ✅ STEP 9: ตั้งค่า ENV ให้รองรับ HTTPS
+
+เพิ่มไฟล์ `.env` หรือเพิ่มใน `docker-compose.yml`:
 
 ```env
-WEBHOOK_URL=https://n8n-yourname.cfargotunnel.com/
-N8N_HOST=n8n-yourname.cfargotunnel.com
 N8N_PROTOCOL=https
+N8N_HOST=YOUR_SERVER_IP
+N8N_PORT=5678
+WEBHOOK_URL=https://YOUR_SERVER_IP:443/
+VUE_APP_URL_BASE_API=https://YOUR_SERVER_IP:443/
 ```
 
-จากนั้น:
+จากนั้น restart:
 
 ```bash
 docker compose down && docker compose up -d
@@ -120,98 +240,20 @@ docker compose down && docker compose up -d
 
 ---
 
-## ✅ STEP 9: เริ่มใช้งาน Webhook ได้ทันที
+## 🚀 พร้อมสำหรับ Let's Encrypt ในอนาคต
 
-```
-https://n8n-yourname.cfargotunnel.com/webhook/...
+เมื่อมีโดเมน สามารถเปิดใช้ SSL ฟรีได้ด้วยคำสั่งนี้:
+
+```bash
+sudo certbot --nginx -d yourdomain.com
 ```
 
 ---
 
-## 🎉 เสร็จสมบูรณ์!
+## 📊 Summary
 
-* ได้ HTTPS ฟรี ใช้งาน Webhook จริงได้
-* ลิงก์ไม่เปลี่ยนหลังรีบูต VM
-* ไม่ต้องจดโดเมนหรือเปิดพอร์ตเลย
-
----
-
-## 🌍 Cloudflare Tunnel Setup for n8n (English)
-
-### Step 1: SSH into your GCP VM
-
-```bash
-gcloud compute ssh [YOUR_VM_NAME] --zone=[YOUR_ZONE]
-```
-
-### Step 2: Install Docker + cloudflared manually
-
-#### Install Docker
-
-```bash
-sudo apt update -y
-sudo apt install -y docker.io
-```
-
-#### Install cloudflared
-
-```bash
-wget -O cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-chmod +x cloudflared
-sudo mv cloudflared /usr/local/bin/
-```
-
-### Step 3: Log into Cloudflare and create tunnel
-
-```bash
-cloudflared login
-cloudflared tunnel create n8n-gcp
-```
-
-### Step 4: Create config.yaml
-
-```yaml
-tunnel: n8n-gcp
-credentials-file: /home/ubuntu/.cloudflared/n8n-gcp.json
-
-ingress:
-  - hostname: n8n-yourname.cfargotunnel.com
-    service: http://localhost:5678
-  - service: http_status:404
-```
-
-### Step 5: Register your subdomain
-
-```bash
-cloudflared tunnel route dns n8n-gcp n8n-yourname.cfargotunnel.com
-```
-
-### Step 6: Run tunnel
-
-```bash
-cloudflared tunnel run n8n-gcp
-```
-
-### Step 7: Configure n8n environment
-
-```env
-WEBHOOK_URL=https://n8n-yourname.cfargotunnel.com/
-N8N_HOST=n8n-yourname.cfargotunnel.com
-N8N_PROTOCOL=https
-```
-
-Restart docker:
-
-```bash
-docker compose down && docker compose up -d
-```
-
-Then access your webhook via:
-
-```
-https://n8n-yourname.cfargotunnel.com/webhook/...
-```
-
----
-
-## 🧰 ติดตั้งแบบ 1-click อยู่ในไฟล์ `setup-n8n-cloudflare.sh` ใน repo นี้
+| รายละเอียด             | คำอธิบาย                          |
+| ---------------------- | --------------------------------- |
+| 🔐 HTTPS (self-signed) | ใช้งานได้ทันทีแม้ไม่มีโดเมน       |
+| 🧩 NGINX reverse proxy | รองรับ HTTPS บน port 443         |
+| 🚀 พร้อม Certbot       | รองรับ Let's Encrypt หากมี domain |
